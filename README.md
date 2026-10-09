@@ -64,6 +64,10 @@ npm install -g agent-relay
 
 Agent Relay has self hosting options for each primitive. We're happy to help you set up the whole system on your environment, just reach out to our team hi(at)agentrelay.com and we'll walk you through it.
 
+The [Open WebUI and Codex example](examples/self-hosted-chat/README.md) connects
+an existing browser chat to a self-hosted Relaycast engine and the installed
+Codex CLI through Relay's MCP integration, preserving correlated replies.
+
 ## License
 
 Apache-2.0 - Copyright 2026 Agent Workforce Incorporated

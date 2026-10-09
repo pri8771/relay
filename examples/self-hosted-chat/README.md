@@ -15,11 +15,11 @@ Mount `chat.mjs` on the existing Hono app with `mountOwnerChat(app, options)`:
 - `runTool({ rootId, promptMessageId, channel, prompt, target, signal }) → { replyId }`:
   wait for the actual tool reply; respect cancellation. Default deadline: 180 seconds.
 
-The host runs the upstream Relaycast MCP tool with per-request
-`RELAY_ATTEST_SESSION_ID=owner-chat:<promptMessageId>`. The upstream MCP stamps
+The host runs a request-bound MCP adapter over the upstream Relaycast SDK with per-request
+`RELAY_ATTEST_SESSION_ID=owner-chat:<promptMessageId>`. The adapter stamps
 `metadata.session_ref` on its real reply. Custom metadata keys survive SDK casing
 verbatim. The adapter matches that exact key, sender id/name, channel and thread,
-then rereads the reply through the SDK. Callback text is never displayed.
+then rereads the reply through the SDK. The MCP reply tool checks the saved root before writing, so the model cannot target another thread. Callback text is never displayed.
 
 Install `openwebui_pipe.py` as a native Open WebUI Pipe Function restricted to the
 existing owner account. It exposes one selectable tool, **Codex (Mac)**, and shows
@@ -33,7 +33,7 @@ verified stored answer. Retries read the original answer; pending/late replies
 remain bound to the original prompt. Open WebUI saves and reopens the conversation
 using its native chat persistence. Auxiliary title/tag tasks never invoke Codex.
 
-The host must demonstrate actual model use through upstream MCP. SDK test doubles
+The host must demonstrate actual model use through the request-bound MCP adapter. SDK test doubles
 or merely selecting the tool do not prove enrollment or a usable connection.
 
 `codex-consumer.mjs` runs the installed Codex CLI with isolated per-child settings.
@@ -43,6 +43,7 @@ stay in place. Each explicit chat turn starts one bounded, read-only model run.
 
 ```sh
 node --test examples/self-hosted-chat/chat.test.mjs
+node --test examples/self-hosted-chat/owner-turn.test.mjs
 node --check examples/self-hosted-chat/chat.mjs
 ```
 
@@ -50,3 +51,5 @@ The Pipe follows the official [Pipe Function](https://docs.openwebui.com/feature
 and [reserved argument](https://docs.openwebui.com/features/extensibility/plugin/development/reserved-args/)
 contracts. It accepts text chat only; errors raise fixed messages rather than
 appearing as fabricated assistant answers.
+
+The manually started receiver accepts new prompts only. If it stops before answering a saved prompt, retrying that turn does not redispatch it; send a new explicit turn after restoring the receiver. Saved conversations remain intact.

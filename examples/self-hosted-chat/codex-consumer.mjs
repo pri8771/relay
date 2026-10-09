@@ -31,6 +31,11 @@ Publish your genuine answer using reply_to_thread with message_id ${request.root
 After the successful Relay reply, finish with a short confirmation. Do not register identities or change settings.`;
   const args = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '-s', 'read-only',
     '-C', config.cwd, '-m', 'gpt-6.1-sol', '-c', 'model_reasoning_effort="low"', '--json',
+    // Text generation owns no host execution, account, browser or agent tools.
+    ...['shell_tool', 'apps', 'plugins', 'browser_use', 'computer_use', 'multi_agent',
+      'image_generation', 'view_image', 'code_mode_host', 'goals', 'hooks', 'sleep_tool',
+      'workspace_dependencies', 'skill_search'].flatMap(name => ['-c', `features.${name}=false`]),
+    '-c', 'web_search="disabled"',
     '-c', 'mcp_servers.relay.command="ssh"',
     '-c', 'mcp_servers.relay.enabled_tools=["get_owner_turn","reply_to_thread"]',
     '-c', 'mcp_servers.relay.default_tools_approval_mode="prompt"',
@@ -45,6 +50,11 @@ After the successful Relay reply, finish with a short confirmation. Do not regis
   events.on('line', (line) => {
     try {
       const event = JSON.parse(line);
+      if (event.type === 'turn.completed' && event.usage) {
+        receipt.usage = Object.fromEntries(['input_tokens', 'cached_input_tokens', 'output_tokens']
+          .filter(key => Number.isSafeInteger(event.usage[key]) && event.usage[key] >= 0)
+          .map(key => [key, event.usage[key]]));
+      }
       receipt.eventTypes.push({ type: event.type, itemType: event.item?.type });
       if (event.item?.type === 'agent_message') receipt.agentMessages.push({
         length: event.item.text?.length ?? 0,
@@ -52,14 +62,35 @@ After the successful Relay reply, finish with a short confirmation. Do not regis
       });
       if (event.item?.type === 'mcp_tool_call') receipt.tools.push({ name: event.item.tool,
         status: event.item.status, server: event.item.server, failed: Boolean(event.item.error) });
+      if (event.item?.type === 'mcp_tool_call' && event.item.tool === 'reply_to_thread' &&
+          event.item.status === 'completed' && !event.item.error) {
+        for (const content of event.item.result?.content ?? []) {
+          if (content.type !== 'text') continue;
+          try {
+            const reply = JSON.parse(content.text);
+            if (/^\d+$/.test(reply.id ?? '') && reply.threadId === request.rootId &&
+                reply.metadata?.session_ref === `owner-chat:${request.promptMessageId}`) receipt.replyId = reply.id;
+          } catch {}
+        }
+      }
     } catch {}
   });
   const deadline = setTimeout(() => running?.kill('SIGTERM'), 180000);
-  const code = await new Promise(resolve => { running.once('exit', resolve); running.once('error', () => resolve(1)); });
+  // 'close' follows stdout drainage; 'exit' can precede final MCP/usage lines.
+  const code = await new Promise(resolve => { running.once('close', resolve); running.once('error', () => resolve(1)); });
   clearTimeout(deadline);
   running = undefined;
   receipt.exitCode = code;
   receipt.finishedAt = new Date().toISOString();
+  // Safe local projection for callers that need child completion, not just a
+  // reply published before the child has exited. No text, args or credentials.
+  await appendFile(config.receiptPath + '.completion.jsonl', JSON.stringify({
+    rootId: request.rootId, promptMessageId: request.promptMessageId, replyId: receipt.replyId ?? null,
+    model: receipt.model, exitCode: code, finishedAt: receipt.finishedAt,
+    toolsCompleted: ['get_owner_turn', 'reply_to_thread'].every(name => receipt.tools.some(
+      tool => tool.name === name && tool.status === 'completed' && !tool.failed)),
+    usage: receipt.usage ?? null,
+  }) + '\n', { mode: 0o600 });
   await appendFile(config.receiptPath, JSON.stringify(receipt) + '\n', { mode: 0o600 });
   process.stdout.write(`Codex request ${request.promptMessageId} exited ${code}.\n`);
 }

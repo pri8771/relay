@@ -90,6 +90,18 @@ def _wait_completion(saved, deadline):
                     if (not isinstance(entry, dict) or entry.get('rootId') != saved['conversationId']
                             or entry.get('replyId') != saved['replyId']):
                         continue
+                    if entry.get('scopeTracePassed') is not True:
+                        raise TextGenerationError('UNEXPECTED_TOOL_USE')
+                    events = entry.get('toolEvents')
+                    item_types = entry.get('itemTypes')
+                    if (not isinstance(events, list) or not events
+                            or any(not isinstance(event, dict) or event.get('server') != 'relay'
+                                   or event.get('name') not in {'get_owner_turn', 'reply_to_thread'}
+                                   or event.get('status') not in {'in_progress', 'completed'}
+                                   or event.get('failed') is not False for event in events)
+                            or not isinstance(item_types, list)
+                            or any(item not in {'agent_message', 'reasoning', 'error', 'mcp_tool_call'} for item in item_types)):
+                        raise TextGenerationError('UNEXPECTED_TOOL_USE')
                     if type(entry.get('exitCode')) is not int or entry['exitCode'] != 0 or entry.get('toolsCompleted') is not True:
                         raise TextGenerationError('CHILD_FAILED')
                     prompt_id = entry.get('promptMessageId')
@@ -101,7 +113,10 @@ def _wait_completion(saved, deadline):
                              if key in {'input_tokens', 'cached_input_tokens', 'output_tokens'}
                              and type(value) is int and value >= 0} if isinstance(usage, dict) else None
                     return {'promptMessageId': prompt_id, 'model': entry['model'], 'exitCode': 0,
-                            'toolsCompleted': True, 'finishedAt': entry['finishedAt'], 'usage': usage or None}
+                            'toolsCompleted': True, 'scopeTracePassed': True,
+                            'toolEvents': [{key: event.get(key) for key in ('name', 'server', 'status', 'failed')} for event in events],
+                            'itemTypes': item_types,
+                            'finishedAt': entry['finishedAt'], 'usage': usage or None}
         except FileNotFoundError:
             pass
         except OSError:

@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
-test('same consumer removes host tool features and projects exact successful child completion', async () => {
+for (const unexpected of [false, true]) test(`consumer drains exact completion and rejects unexpected trace=${unexpected}`, async () => {
   // Retain generated diagnostic inputs under the owner no-deletion rule.
   const dir = await mkdtemp(join(tmpdir(), 'relay-consumer-test-'));
   const receipt = join(dir, 'receipts.jsonl');
@@ -19,6 +19,7 @@ test('same consumer removes host tool features and projects exact successful chi
     {type:'item.completed',item:{type:'mcp_tool_call',server:'relay',tool:'reply_to_thread',status:'completed',result:{content:[{type:'text',text:JSON.stringify({id:'124',threadId:'123',metadata:{session_ref:'owner-chat:122'}})}]}}},
     {type:'turn.completed',usage:{input_tokens:9,cached_input_tokens:3,output_tokens:7,private:'not projected'}},
   ];
+  if (unexpected) lateEvents.unshift({type:'item.completed',item:{type:'command_execution',status:'completed'}});
   const delayedOutput = `setTimeout(() => {for(const event of ${JSON.stringify(lateEvents)}) console.log(JSON.stringify(event));},80);`;
   await writeFile(fakeCodex, prefix + `import{writeFileSync}from'node:fs';import{spawn}from'node:child_process';
     writeFileSync(${JSON.stringify(argsPath)},JSON.stringify(process.argv.slice(2)));
@@ -36,7 +37,11 @@ test('same consumer removes host tool features and projects exact successful chi
       await delay(20);
     }
     assert.deepEqual(completion, {rootId:'123',promptMessageId:'122',replyId:'124',model:'gpt-6.1-sol',exitCode:0,
-      finishedAt:completion.finishedAt,toolsCompleted:true,usage:{input_tokens:9,cached_input_tokens:3,output_tokens:7}});
+      finishedAt:completion.finishedAt,scopeTracePassed:!unexpected,toolsCompleted:true,
+      toolEvents:[{name:'get_owner_turn',status:'completed',server:'relay',failed:false},
+                  {name:'reply_to_thread',status:'completed',server:'relay',failed:false}],
+      itemTypes:unexpected ? ['mcp_tool_call','command_execution'] : ['mcp_tool_call'],
+      usage:{input_tokens:9,cached_input_tokens:3,output_tokens:7}});
     const args = JSON.parse(await readFile(argsPath,'utf8'));
     for (const name of ['shell_tool','apps','plugins','browser_use','computer_use','multi_agent','image_generation','view_image','code_mode_host','goals','hooks','sleep_tool','workspace_dependencies','skill_search']) {
       assert(args.includes(`features.${name}=false`));

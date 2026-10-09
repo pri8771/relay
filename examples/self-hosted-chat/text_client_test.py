@@ -60,7 +60,10 @@ class ClientTests(unittest.TestCase):
     def test_completion_requires_exact_reply_and_actual_successful_child_exit(self):
         saved = {'conversationId':'123', 'replyId':'124', 'answer':'text'}
         entry = {'rootId':'123', 'replyId':'124', 'promptMessageId':'122', 'model':'gpt-6.1-sol',
-                 'exitCode':0, 'toolsCompleted':True, 'finishedAt':'timestamp',
+                 'exitCode':0, 'toolsCompleted':True, 'scopeTracePassed':True, 'finishedAt':'timestamp',
+                 'toolEvents':[{'name':'get_owner_turn','server':'relay','status':'completed','failed':False},
+                               {'name':'reply_to_thread','server':'relay','status':'completed','failed':False}],
+                 'itemTypes':['mcp_tool_call'],
                  'usage': {'output_tokens':12, 'private':'never returned'}}
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'completion.jsonl'
@@ -77,6 +80,17 @@ class ClientTests(unittest.TestCase):
                 with self.assertRaises(TextGenerationError) as raised:
                     _wait_completion(saved,0)
                 self.assertEqual(raised.exception.code,'CHILD_FAILED')
+                path.write_text(json.dumps({**entry,'scopeTracePassed':False})+'\n')
+                with self.assertRaises(TextGenerationError) as raised:
+                    _wait_completion(saved,0)
+                self.assertEqual(raised.exception.code,'UNEXPECTED_TOOL_USE')
+                for status in ('failed','unknown'):
+                    path.write_text(json.dumps({**entry,'toolEvents':[
+                        {'name':'get_owner_turn','server':'relay','status':status,'failed':False},
+                        *entry['toolEvents']]})+'\n')
+                    with self.assertRaises(TextGenerationError) as raised:
+                        _wait_completion(saved,0)
+                    self.assertEqual(raised.exception.code,'UNEXPECTED_TOOL_USE')
 
 
 if __name__ == '__main__':

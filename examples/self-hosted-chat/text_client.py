@@ -23,7 +23,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         raise TextGenerationError('UNEXPECTED_REDIRECT')
 
 
-def generate_text(prompt, *, conversation_id, request_id, max_answer_chars=32000, require_completion=False):
+def generate_text(prompt, *, conversation_id, request_id, max_answer_chars=32000, require_completion=False, completion_mode='mcp'):
     """Return saved {conversationId, replyId, answer}; never execute answer text.
 
     Use a distinct conversation_id per task. Recover a late response by retrying
@@ -34,7 +34,9 @@ def generate_text(prompt, *, conversation_id, request_id, max_answer_chars=32000
             or not isinstance(conversation_id, str) or not _ID.fullmatch(conversation_id)
             or not isinstance(request_id, str) or not _ID.fullmatch(request_id)
             or type(max_answer_chars) is not int or not 1 <= max_answer_chars <= 32000
-            or type(require_completion) is not bool):
+            or type(require_completion) is not bool or completion_mode not in {'mcp', 'swarm-final-text'}
+            or (completion_mode == 'swarm-final-text' and
+                (not conversation_id.startswith('swarm-task:') or not request_id.startswith('swarm-turn:')))):
         raise TextGenerationError('INVALID_INPUT')
     payload = {'toolId': 'codex', 'prompt': prompt.strip(),
                'externalConversationId': conversation_id, 'requestId': request_id}
@@ -72,11 +74,11 @@ def generate_text(prompt, *, conversation_id, request_id, max_answer_chars=32000
         raise TextGenerationError('ANSWER_TOO_LARGE')
     saved = {key: data[key] for key in ('conversationId', 'replyId', 'answer')}
     if require_completion:
-        saved['completion'] = _wait_completion(saved, started + 195)
+        saved['completion'] = _wait_completion(saved, started + 195, completion_mode)
     return saved
 
 
-def _wait_completion(saved, deadline):
+def _wait_completion(saved, deadline, mode='mcp'):
     # This fixed file contains only scalar completion projections written by the
     # same local consumer. Never resubmit a prompt or read its private config.
     while True:
@@ -94,15 +96,22 @@ def _wait_completion(saved, deadline):
                         raise TextGenerationError('UNEXPECTED_TOOL_USE')
                     events = entry.get('toolEvents')
                     item_types = entry.get('itemTypes')
-                    if (not isinstance(events, list) or not events
+                    direct = mode == 'swarm-final-text'
+                    if direct and entry.get('mode') != mode:
+                        raise TextGenerationError('INVALID_COMPLETION')
+                    if (not isinstance(events, list) or (direct and events) or (not direct and not events)
                             or any(not isinstance(event, dict) or event.get('server') != 'relay'
                                    or event.get('name') not in {'get_owner_turn', 'reply_to_thread'}
                                    or event.get('status') not in {'in_progress', 'completed'}
                                    or event.get('failed') is not False for event in events)
                             or not isinstance(item_types, list)
-                            or any(item not in {'agent_message', 'reasoning', 'error', 'mcp_tool_call'} for item in item_types)):
+                            or any(item not in ({'agent_message', 'reasoning'} if direct else
+                                               {'agent_message', 'reasoning', 'error', 'mcp_tool_call'}) for item in item_types)):
                         raise TextGenerationError('UNEXPECTED_TOOL_USE')
-                    if type(entry.get('exitCode')) is not int or entry['exitCode'] != 0 or entry.get('toolsCompleted') is not True:
+                    if (type(entry.get('exitCode')) is not int or entry['exitCode'] != 0 or
+                            (direct and (entry.get('textCompleted') is not True or entry.get('toolsCompleted') is not False
+                                         or entry.get('failureCode') is not None)) or
+                            (not direct and (entry.get('mode') is not None or entry.get('toolsCompleted') is not True))):
                         raise TextGenerationError('CHILD_FAILED')
                     prompt_id = entry.get('promptMessageId')
                     if (not isinstance(prompt_id, str) or not prompt_id.isdigit()
@@ -113,10 +122,11 @@ def _wait_completion(saved, deadline):
                              if key in {'input_tokens', 'cached_input_tokens', 'output_tokens'}
                              and type(value) is int and value >= 0} if isinstance(usage, dict) else None
                     return {'promptMessageId': prompt_id, 'model': entry['model'], 'exitCode': 0,
-                            'toolsCompleted': True, 'scopeTracePassed': True,
+                            'toolsCompleted': not direct, 'scopeTracePassed': True,
                             'toolEvents': [{key: event.get(key) for key in ('name', 'server', 'status', 'failed')} for event in events],
                             'itemTypes': item_types,
-                            'finishedAt': entry['finishedAt'], 'usage': usage or None}
+                            'finishedAt': entry['finishedAt'], 'usage': usage or None,
+                            **({'mode': mode, 'textCompleted': True, 'failureCode': None} if direct else {})}
         except FileNotFoundError:
             pass
         except OSError:

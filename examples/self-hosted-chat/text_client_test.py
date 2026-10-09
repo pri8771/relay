@@ -9,6 +9,25 @@ from text_client import generate_text, TextGenerationError, _NoRedirect, _wait_c
 
 
 class ClientTests(unittest.TestCase):
+    def test_direct_text_completion_is_explicit_and_rejects_tool_error_or_false_success(self):
+        saved = {'conversationId':'123', 'replyId':'124', 'answer':'text'}
+        entry = {'rootId':'123','replyId':'124','promptMessageId':'122','model':'gpt-6.1-sol',
+                 'exitCode':0,'scopeTracePassed':True,'toolsCompleted':False,'mode':'swarm-final-text',
+                 'textCompleted':True,'failureCode':None,'toolEvents':[],
+                 'itemTypes':['agent_message'],'finishedAt':'timestamp','usage':None}
+        path = Path(tempfile.mkdtemp(prefix='relay-client-direct-test-'))/'completion.jsonl'
+        with patch('text_client._COMPLETIONS',path):
+            path.write_text(json.dumps(entry)+'\n')
+            self.assertTrue(_wait_completion(saved,0,'swarm-final-text')['textCompleted'])
+            with self.assertRaises(TextGenerationError):
+                _wait_completion(saved,0)  # Ordinary MCP callers cannot accept text-mode receipt.
+            for changed in [{'textCompleted':False},{'toolsCompleted':True},{'failureCode':'CHILD_ERROR_EVENT'},
+                            {'mode':'other'},{'exitCode':1},{'itemTypes':['error']},
+                            {'toolEvents':[{'name':'reply_to_thread','server':'relay','status':'completed','failed':False}]}]:
+                path.write_text(json.dumps({**entry,**changed})+'\n')
+                with self.assertRaises(TextGenerationError):
+                    _wait_completion(saved,0,'swarm-final-text')
+
     def test_uses_fixed_local_connection_and_returns_saved_receipt(self):
         receipt = {'conversationId': '123', 'replyId': '124', 'answer': '{"action":"done"}'}
         response = io.BytesIO(json.dumps({'ok': True, 'data': receipt}).encode())

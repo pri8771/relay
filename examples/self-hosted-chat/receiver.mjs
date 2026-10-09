@@ -1,4 +1,4 @@
-// Manual receiver: emits only owner request identifiers. The actual AI reads through MCP.
+// Ordinary chat emits IDs for MCP. Swarm text tasks additionally emit saved public task data.
 import { pathToFileURL } from 'node:url';
 
 const provider = await import(pathToFileURL(process.argv[2]).href);
@@ -20,8 +20,11 @@ toolClient.subscribe([channel.name], async (event) => {
         message.metadata?.source !== 'owner-chat' || message.metadata?.toolId !== toolId ||
         Date.parse(message.createdAt) < started) return;
     seen.add(message.id);
+    const swarm = message.metadata?.externalConversationId?.startsWith('swarm-task:') &&
+      message.metadata?.requestId?.startsWith('swarm-turn:');
     process.stdout.write(JSON.stringify({ type: 'request', rootId: message.threadId ?? message.id,
-      promptMessageId: message.id, channel: channel.name }) + '\n');
+      promptMessageId: message.id, channel: channel.name,
+      ...(swarm ? { mode: 'swarm-final-text', prompt: message.text } : {}) }) + '\n');
   } catch { process.stderr.write('Relay request readback failed.\n'); }
 });
 async function stop() {

@@ -67,3 +67,22 @@ Per-child features disable shell, app/plugin, browser/computer, image/view-image
 Authorized Swarm reuse is a supervised finite, instruction-scoped public/synthetic text task. It is not a proved capability-isolated sandbox, and the full installed builtin tool inventory remains unknown. The retained feature restrictions narrow the child; observable tool events enforce acceptance. Any item outside ordinary text/reasoning/error or the two named Relay MCP tools marks scopeTracePassed false, stops child continuation, and rejects caller acceptance. The first live completion-ledger check belongs to Swarm's fresh finite granted real step, not another test prompt. Swarm owns actions/artifacts and continuation after receipt, trace, parser and resource review.
 
 Successful completion additionally returns `scopeTracePassed: true`, safe `toolEvents` (name/server/status/failed only) and `itemTypes`. The client rejects unknown tool names/servers, failed tools and unexpected item types even if an answer was saved and exitCode was zero. No capability-exclusion claim follows from a passing observed trace.
+
+Swarm-only final text mode uses saved `swarm-task:` conversation and
+`swarm-turn:` request metadata. The receiver passes that saved public/synthetic
+prompt directly to the existing restricted child, without model-facing MCP.
+The consumer waits for actual child close and a completed turn, rejects error
+items and all observed tool calls, and sends only the last completed final
+agent message to the trusted `publish-swarm.mjs` transport. That transport
+rechecks saved owner/tool/channel, Swarm metadata, root and prompt digest before
+publishing through the existing SDK with the exact session correlation.
+Ordinary owner chat keeps its existing MCP behavior.
+
+Callers select `completion_mode='swarm-final-text'` together with
+`require_completion=True`. The scalar receipt must explicitly show that mode,
+`textCompleted=true`, `toolsCompleted=false`, an empty tool trace, no error
+items, exit zero and the exact saved reply. Character limits remain acceptance
+limits; numeric CLI usage includes its internal context and does not represent
+only the submitted task. No capability isolation or physical request count is
+claimed. A new independently reviewed finite grant is needed after a failed
+attempt; this mode does not retry or continue automatically.

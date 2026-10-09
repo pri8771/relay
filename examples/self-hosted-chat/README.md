@@ -86,3 +86,14 @@ limits; numeric CLI usage includes its internal context and does not represent
 only the submitted task. No capability isolation or physical request count is
 claimed. A new independently reviewed finite grant is needed after a failed
 attempt; this mode does not retry or continue automatically.
+
+For explicitly admitted Swarm text attempts, the consumer also saves a separate
+`receiptPath + '.diagnostics.jsonl'` after child close. It contains bound IDs,
+native thread ID when emitted, exit/time, and at most four structured error
+messages plus four stderr ERROR/WARN lines. Messages are limited to a redacted
+512-character first line; task text, paths, URLs, emails, credential assignments
+and opaque values are removed. Raw events, stderr, prompts, configuration and
+final responses are not retained there. An error category is diagnostic data;
+it does not establish severity or permit continuation. Ordinary MCP chat has
+no added diagnostic capture. Existing ephemeral attempts cannot be diagnosed
+retroactively if their error text was discarded.

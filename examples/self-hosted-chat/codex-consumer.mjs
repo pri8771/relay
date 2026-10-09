@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline';
 import { appendFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { safeDiagnostic } from './safe-diagnostic.mjs';
 
 const config = (await import(pathToFileURL(process.argv[2]).href)).default;
 const receiver = spawn('ssh', [...(config.receiverSshArgs ?? config.sshArgs), config.receiverCommand], {
@@ -56,14 +57,26 @@ After the successful Relay reply, finish with a short confirmation. Do not regis
   let finalText;
   let turnCompleted = false;
   let hadError = false;
+  const diagnostics = [];
+  const stderrDiagnostics = [];
   receipt.scopeTracePassed = true;
   running = spawn(config.codexCommand ?? 'codex', args, { stdio: ['ignore', 'pipe', 'pipe'] });
-  running.stderr.on('data', () => {});
+  // Retain only bounded redacted operational error lines, never raw stderr.
+  const stderrLines = createInterface({ input: running.stderr });
+  stderrLines.on('line', line => {
+    if (direct && stderrDiagnostics.length < 4 && /\b(?:ERROR|WARN)\b/.test(line))
+      stderrDiagnostics.push(safeDiagnostic(line, direct ? request.prompt : ''));
+  });
   const events = createInterface({ input: running.stdout });
   events.on('line', (line) => {
     try {
       const event = JSON.parse(line);
       const item = event.item;
+      if (event.type === 'thread.started' && /^[a-f0-9-]{36}$/.test(event.thread_id ?? '')) receipt.nativeThreadId = event.thread_id;
+      if (direct && diagnostics.length < 4 && (event.type === 'turn.failed' || event.type === 'error' || item?.type === 'error')) {
+        diagnostics.push({ eventType: event.type, itemType: item?.type ?? null,
+          ...safeDiagnostic(item?.message ?? event.error?.message ?? event.message, direct ? request.prompt : '') });
+      }
       if (item && !['agent_message', 'reasoning', 'error'].includes(item.type) &&
           !(!direct && item.type === 'mcp_tool_call' && item.server === 'relay' &&
             ['get_owner_turn', 'reply_to_thread'].includes(item.tool) &&
@@ -109,6 +122,11 @@ After the successful Relay reply, finish with a short confirmation. Do not regis
   running = undefined;
   receipt.exitCode = code;
   receipt.finishedAt = new Date().toISOString();
+  if (direct) await appendFile(config.receiptPath + '.diagnostics.jsonl', JSON.stringify({
+    rootId: request.rootId, promptMessageId: request.promptMessageId,
+    nativeThreadId: receipt.nativeThreadId ?? null, model: receipt.model,
+    exitCode: code, finishedAt: receipt.finishedAt, diagnostics, stderrDiagnostics,
+  }) + '\n', { mode: 0o600 });
   if (direct) {
     receipt.textCompleted = false;
     if (!stopping && code === 0 && turnCompleted && !hadError && receipt.scopeTracePassed && receipt.tools.length === 0 &&

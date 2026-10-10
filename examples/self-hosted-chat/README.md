@@ -97,3 +97,12 @@ final responses are not retained there. An error category is diagnostic data;
 it does not establish severity or permit continuation. Ordinary MCP chat has
 no added diagnostic capture. Existing ephemeral attempts cannot be diagnosed
 retroactively if their error text was discarded.
+
+The admitted diagnostic attempt identified a Code Mode / disabled-host
+compatibility error. Swarm direct text mode now explicitly sets both
+`features.code_mode=false` and `features.code_mode_only=false`, retaining
+`features.code_mode_host=false` and every other tool restriction. The installed
+CLI accepts these feature settings offline; only a fresh admitted real task
+can establish the resulting runtime behavior. Ordinary MCP arguments are
+unchanged. The actual error event remains a rejecting fixture and the prior
+failed attempt remains in history.

@@ -1,7 +1,8 @@
 // Operational error text only. Never serialize event payloads or configuration.
 export function safeDiagnostic(value, knownPrompt = '') {
   if (typeof value !== 'string') return { category: 'UNCLASSIFIED', message: 'No structured error message' };
-  const category = /mcp|tool.*initializ/i.test(value) ? 'MCP_STARTUP' :
+  const category = /code.mode.*unavailable.*host.*disabled/i.test(value) ? 'CODE_MODE_HOST_DISABLED' :
+    /mcp|tool.*initializ/i.test(value) ? 'MCP_STARTUP' :
     /unauthori[sz]ed|authentication|credential/i.test(value) ? 'AUTH' :
     /sandbox|permission denied/i.test(value) ? 'SANDBOX' :
     /configuration|unknown feature|invalid.*config/i.test(value) ? 'CONFIGURATION' :

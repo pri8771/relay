@@ -42,8 +42,9 @@ for (const failure of ['none','error','tool','nonzero','unfinished','oversize'])
       else{console.log(JSON.stringify({type:'request',rootId:'123',promptMessageId:'122',channel:'owner-chat',mode:'swarm-final-text',prompt:'public task'}));process.stdin.resume();}`,{mode:0o700});
     const events = [
       {type:'thread.started',thread_id:'11111111-1111-1111-1111-111111111111'},
+      ...(failure==='error'?[{type:'item.completed',item:{type:'error',message:'Code Mode is unavailable because code-mode host is disabled. Code mode will fail closed; enable `features.code_mode_host` and install `codex-code-mode-host`.'}}]:[]),
+      {type:'turn.started'},
       {type:'item.completed',item:{type:'agent_message',text:'working commentary'}},
-      ...(failure==='error'?[{type:'item.completed',item:{type:'error',message:'synthetic error'}}]:[]),
       ...(failure==='tool'?[{type:'item.completed',item:{type:'mcp_tool_call',server:'relay',tool:'get_owner_turn',status:'completed'}}]:[]),
       {type:'item.completed',item:{type:'agent_message',text:failure==='oversize'?'x'.repeat(32001):'{"action":"final"}'}},
       ...(failure==='unfinished'?[]:[{type:'turn.completed',usage:{input_tokens:9,output_tokens:7}}]),
@@ -68,12 +69,13 @@ for (const failure of ['none','error','tool','nonzero','unfinished','oversize'])
       const args=JSON.parse(await readFile(argsPath,'utf8'));
       assert(args.at(-1).includes('public task'));
       assert(!args.some(arg=>arg.startsWith('mcp_servers.')));
+      for(const flag of ['code_mode','code_mode_only','code_mode_host'])assert(args.includes(`features.${flag}=false`));
       const privateReceipt=await readFile(receipt,'utf8');
       assert(!privateReceipt.includes('public task'));
       const diagnostic=JSON.parse((await readFile(receipt+'.diagnostics.jsonl','utf8')).trim());
       assert.equal(diagnostic.nativeThreadId,'11111111-1111-1111-1111-111111111111');
       assert.equal(diagnostic.diagnostics.length,failure==='error'?1:0);
-      if(failure==='error')assert.equal(diagnostic.diagnostics[0].message,'synthetic error');
+      if(failure==='error')assert.equal(diagnostic.diagnostics[0].category,'CODE_MODE_HOST_DISABLED');
       if(failure==='none'){
         assert.equal(completion.replyId,'124');
         assert.equal(completion.failureCode,null);

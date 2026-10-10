@@ -44,6 +44,9 @@ After the successful Relay reply, finish with a short confirmation. Do not regis
       'image_generation', 'view_image', 'code_mode_host', 'goals', 'hooks', 'sleep_tool',
       'workspace_dependencies', 'skill_search'].flatMap(name => ['-c', `features.${name}=false`]),
     '-c', 'web_search="disabled"',
+    // Explicitly disable the outer Code Mode as well as its host. The installed
+    // CLI otherwise reports a fail-closed mode/disabled-host incompatibility.
+    ...(direct ? ['-c', 'features.code_mode=false', '-c', 'features.code_mode_only=false'] : []),
     ...(direct ? [] : ['-c', 'mcp_servers.relay.command="ssh"',
     '-c', 'mcp_servers.relay.enabled_tools=["get_owner_turn","reply_to_thread"]',
     '-c', 'mcp_servers.relay.default_tools_approval_mode="prompt"',

@@ -69,7 +69,8 @@ for (const failure of ['none','error','tool','nonzero','unfinished','oversize'])
       const args=JSON.parse(await readFile(argsPath,'utf8'));
       assert(args.at(-1).includes('public task'));
       assert(!args.some(arg=>arg.startsWith('mcp_servers.')));
-      for(const flag of ['code_mode','code_mode_only','code_mode_host'])assert(args.includes(`features.${flag}=false`));
+      for(const flag of ['code_mode','code_mode_only'])assert(args.includes(`features.${flag}=false`));
+      assert(args.includes('features.code_mode_host=true'));
       const privateReceipt=await readFile(receipt,'utf8');
       assert(!privateReceipt.includes('public task'));
       const diagnostic=JSON.parse((await readFile(receipt+'.diagnostics.jsonl','utf8')).trim());

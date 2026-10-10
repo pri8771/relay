@@ -41,11 +41,12 @@ After the successful Relay reply, finish with a short confirmation. Do not regis
     '-C', config.cwd, '-m', 'gpt-6.1-sol', '-c', 'model_reasoning_effort="low"', '--json',
     // Text generation owns no host execution, account, browser or agent tools.
     ...['shell_tool', 'apps', 'plugins', 'browser_use', 'computer_use', 'multi_agent',
-      'image_generation', 'view_image', 'code_mode_host', 'goals', 'hooks', 'sleep_tool',
+      'image_generation', 'view_image', 'goals', 'hooks', 'sleep_tool',
       'workspace_dependencies', 'skill_search'].flatMap(name => ['-c', `features.${name}=false`]),
     '-c', 'web_search="disabled"',
-    // Explicitly disable the outer Code Mode as well as its host. The installed
-    // CLI otherwise reports a fail-closed mode/disabled-host incompatibility.
+    // Restore the already-bundled host used by the accepted ordinary executor.
+    // Disabling it caused a fail-closed error even with both outer flags false.
+    '-c', 'features.code_mode_host=true',
     ...(direct ? ['-c', 'features.code_mode=false', '-c', 'features.code_mode_only=false'] : []),
     ...(direct ? [] : ['-c', 'mcp_servers.relay.command="ssh"',
     '-c', 'mcp_servers.relay.enabled_tools=["get_owner_turn","reply_to_thread"]',

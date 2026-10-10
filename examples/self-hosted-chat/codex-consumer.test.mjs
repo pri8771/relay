@@ -43,9 +43,10 @@ for (const unexpected of [false, true]) test(`consumer drains exact completion a
       itemTypes:unexpected ? ['mcp_tool_call','command_execution'] : ['mcp_tool_call'],
       usage:{input_tokens:9,cached_input_tokens:3,output_tokens:7}});
     const args = JSON.parse(await readFile(argsPath,'utf8'));
-    for (const name of ['shell_tool','apps','plugins','browser_use','computer_use','multi_agent','image_generation','view_image','code_mode_host','goals','hooks','sleep_tool','workspace_dependencies','skill_search']) {
+    for (const name of ['shell_tool','apps','plugins','browser_use','computer_use','multi_agent','image_generation','view_image','goals','hooks','sleep_tool','workspace_dependencies','skill_search']) {
       assert(args.includes(`features.${name}=false`));
     }
+    assert(args.includes('features.code_mode_host=true'));
     assert(args.includes('web_search="disabled"'));
     assert(args.includes('mcp_servers.relay.enabled_tools=["get_owner_turn","reply_to_thread"]'));
     assert(args.includes('--ignore-user-config'));

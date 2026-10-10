@@ -62,7 +62,7 @@ python3 -B -m unittest discover -s examples/self-hosted-chat -p 'text_client_tes
 
 For a caller that owns tool execution, use `require_completion=True` and optionally `max_answer_chars=3072`. The latter rejects oversized saved answers without truncation or another dispatch; it does not enforce a generation or token cap. The former waits on the fixed local scalar completion ledger until the exact returned Relay root/reply match a successful exited child and both MCP tools completed. Total local deadline remains195s from invocation; incomplete/missing projection fails with `COMPLETION_PENDING`, never resubmits. `completion` returns `{promptMessageId, model, exitCode, toolsCompleted, finishedAt, usage}`; usage contains only CLI-emitted nonnegative integer input/cached/output token counters or `None`. Internal physical model-request count is unknown. Replies saved before exit alone do not prove completion. This feature is native-Mac only and uses the retained local receipt path, not browser credentials.
 
-Per-child features disable shell, app/plugin, browser/computer, image/view-image, code host, multi-agent, goals/hooks, sleep, workspace-dependency and skill-search tools; web search is disabled. These settings are child arguments only; owner configuration and the approved listener stay in place. Official shell flag: https://learn.chatgpt.com/docs/config-file/config-reference#features-shell-tool . Installed CLI feature-list validation is retained in execution evidence. The child still reads only its bound MCP conversation and publishes the saved reply. Parent-level SSH/MCP connection is not model-controlled execution.
+Per-child features disable shell, app/plugin, browser/computer, image/view-image, multi-agent, goals/hooks, sleep, workspace-dependency and skill-search tools; web search is disabled. These settings are child arguments only; owner configuration and the approved listener stay in place. Official shell flag: https://learn.chatgpt.com/docs/config-file/config-reference#features-shell-tool . Installed CLI feature-list validation is retained in execution evidence. The child still reads only its bound MCP conversation and publishes the saved reply. Parent-level SSH/MCP connection is not model-controlled execution.
 
 Authorized Swarm reuse is a supervised finite, instruction-scoped public/synthetic text task. It is not a proved capability-isolated sandbox, and the full installed builtin tool inventory remains unknown. The retained feature restrictions narrow the child; observable tool events enforce acceptance. Any item outside ordinary text/reasoning/error or the two named Relay MCP tools marks scopeTracePassed false, stops child continuation, and rejects caller acceptance. The first live completion-ledger check belongs to Swarm's fresh finite granted real step, not another test prompt. Swarm owns actions/artifacts and continuation after receipt, trace, parser and resource review.
 
@@ -99,10 +99,18 @@ no added diagnostic capture. Existing ephemeral attempts cannot be diagnosed
 retroactively if their error text was discarded.
 
 The admitted diagnostic attempt identified a Code Mode / disabled-host
-compatibility error. Swarm direct text mode now explicitly sets both
-`features.code_mode=false` and `features.code_mode_only=false`, retaining
-`features.code_mode_host=false` and every other tool restriction. The installed
-CLI accepts these feature settings offline; only a fresh admitted real task
-can establish the resulting runtime behavior. Ordinary MCP arguments are
-unchanged. The actual error event remains a rejecting fixture and the prior
-failed attempt remains in history.
+compatibility error. Explicitly disabling the two outer mode flags did not
+resolve the actual runtime error. The coordinator authorized restoring the
+existing bundled host for both ordinary MCP and Swarm text children:
+`features.code_mode_host=true`. The accepted ordinary consumer lacked the later
+host-disable override, and the existing host executable and source/receipts
+were independently compared. No component is installed and no global setting
+changes. Historical receipts did not project the effective host flag, so this
+comparison is not a capability-isolation claim.
+
+All other tool restrictions remain. Swarm direct mode still has no MCP
+configuration and retains `features.code_mode=false` and
+`features.code_mode_only=false`; ordinary MCP binding is preserved. Any
+unexpected observed tool use or error still rejects publication/acceptance.
+Only a fresh admitted real task establishes useful restoration; tests and
+feature values alone do not. Prior failures and their diagnostics remain.
